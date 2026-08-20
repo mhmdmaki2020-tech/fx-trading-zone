@@ -65,6 +65,9 @@ function publicUser(row) {
     country: row.country,
     emailVerified: !!row.email_verified,
     avatarUrl: row.avatar_url || null,
+    mt5Connected: !!row.mt5_connected,
+    mt5Login: row.mt5_login || null,
+    mt5Server: row.mt5_server || null,
     createdAt: row.created_at,
   };
 }
@@ -311,6 +314,27 @@ app.post("/api/profile/password", requireAuth, (req, res) => {
   const hash = bcrypt.hashSync(newPassword, 10);
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, req.user.id);
   res.json({ ok: true });
+});
+
+// Connects using an MT5 "investor" (read-only) password — never a real trading password.
+// There's no live broker bridge behind this yet (that needs either the MT5 desktop terminal
+// or a paid third-party API like MetaApi.cloud), so this only records that a connection was
+// made. We deliberately don't store the investor password anywhere — it's not needed since
+// nothing here actually logs into MT5 yet, and there's no reason to hold onto it.
+app.post("/api/mt5/connect", requireAuth, (req, res) => {
+  const { login, server } = req.body || {};
+  if (!login || !server) {
+    return res.status(400).json({ error: "Account login and server are required." });
+  }
+  db.prepare("UPDATE users SET mt5_connected = 1, mt5_login = ?, mt5_server = ? WHERE id = ?").run(login, server, req.user.id);
+  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  res.json({ user: publicUser(updated) });
+});
+
+app.post("/api/mt5/disconnect", requireAuth, (req, res) => {
+  db.prepare("UPDATE users SET mt5_connected = 0, mt5_login = NULL, mt5_server = NULL WHERE id = ?").run(req.user.id);
+  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  res.json({ user: publicUser(updated) });
 });
 
 app.get("/api/posts", requireAuth, (req, res) => {

@@ -30,6 +30,9 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN avatar_url TEXT",
   "ALTER TABLE users ADD COLUMN reset_code TEXT",
   "ALTER TABLE users ADD COLUMN reset_code_expires TEXT",
+  "ALTER TABLE users ADD COLUMN mt5_connected INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE users ADD COLUMN mt5_login TEXT",
+  "ALTER TABLE users ADD COLUMN mt5_server TEXT",
 ]) {
   try {
     db.exec(stmt);

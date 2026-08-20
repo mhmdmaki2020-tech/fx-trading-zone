@@ -6,3 +6,22 @@ html, body, #root {
   height: 100%;
   margin: 0;
 }
+
+/* Mobile app feel: no rubber-band overscroll, no gray tap flash, safe-area aware. */
+html, body {
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

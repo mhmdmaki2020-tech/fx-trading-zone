@@ -30,6 +30,8 @@ import {
   Search,
   Calculator,
   RotateCcw,
+  GraduationCap,
+  ExternalLink,
 } from "lucide-react";
 
 // ---------- Relative time formatting for posts ----------
@@ -505,7 +507,7 @@ function TickerTape() {
   ];
   const row = [...symbols, ...symbols];
   return (
-    <div className="overflow-hidden border-b border-white/10 bg-[#0D0F14]">
+    <div className="overflow-hidden border-b border-white/10 bg-[#0D0F14] safe-top">
       <div className="flex gap-8 py-2 px-4 animate-[scroll_28s_linear_infinite] whitespace-nowrap" style={{ width: "max-content" }}>
         {row.map((t, i) => (
           <div key={i} className="flex items-center gap-2 font-mono text-xs">
@@ -528,10 +530,11 @@ function Sidebar({ view, setView, unreadCount, friendRequestCount }) {
     { id: "messages", label: "Messages", icon: MessageSquare },
     { id: "notifications", label: "Alerts", icon: Bell, badge: unreadCount },
     { id: "bot", label: "Bot", icon: Bot },
+    { id: "courses", label: "Learn", icon: GraduationCap },
     { id: "profile", label: "Profile", icon: User, badge: friendRequestCount },
   ];
   return (
-    <div className="flex md:flex-col gap-1 md:gap-2 md:w-20 w-full md:h-full border-r border-white/10 bg-[#0D0F14] py-4 px-2 md:items-center justify-around md:justify-start">
+    <div className="flex md:flex-col gap-1 md:gap-2 md:w-20 w-full md:h-full border-r border-white/10 bg-[#0D0F14] pt-4 pb-[calc(1rem_+_env(safe-area-inset-bottom))] md:pb-4 px-2 md:items-center justify-around md:justify-start">
       <div className="hidden md:flex flex-col items-center mb-6">
         <Logo size={28} />
       </div>
@@ -1091,20 +1094,57 @@ function TradeReturnCalculator() {
 }
 
 // ---------- Bot Dashboard ----------
-function BotDashboard() {
-  const [connected, setConnected] = useState(false);
+function BotDashboard({ user, onUserUpdate }) {
+  const connected = user.mt5Connected;
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState("");
   const [running, setRunning] = useState(false);
   const [modes, setModes] = useState({ auto: true, copy: false, commentary: true });
-  const [form, setForm] = useState({ login: "", server: "", password: "" });
+  const [form, setForm] = useState({ login: user.mt5Login || "", server: user.mt5Server || "", password: "" });
 
-  const trades = [
-    { id: 1, symbol: "EURUSD", side: "BUY", lots: 0.5, entry: "1.0821", exit: "1.0842", pnl: "+42.00", status: "closed" },
-    { id: 2, symbol: "XAUUSD", side: "SELL", lots: 0.2, entry: "2,401.2", exit: "—", pnl: "-8.40", status: "open" },
-    { id: 3, symbol: "US30", side: "BUY", lots: 1.0, entry: "39,720", exit: "39,812", pnl: "+92.00", status: "closed" },
-  ];
+  // Only ever real once a live account is connected — no fake trades shown as if they happened.
+  const trades = connected
+    ? [
+        { id: 1, symbol: "EURUSD", side: "BUY", lots: 0.5, entry: "1.0821", exit: "1.0842", pnl: "+42.00", status: "closed" },
+        { id: 2, symbol: "XAUUSD", side: "SELL", lots: 0.2, entry: "2,401.2", exit: "—", pnl: "-8.40", status: "open" },
+        { id: 3, symbol: "US30", side: "BUY", lots: 1.0, entry: "39,720", exit: "39,812", pnl: "+92.00", status: "closed" },
+      ]
+    : [];
 
   function toggleMode(key) {
     setModes((m) => ({ ...m, [key]: !m[key] }));
+  }
+
+  async function handleConnectToggle() {
+    setConnectError("");
+    if (connected) {
+      const res = await fetch("/api/mt5/disconnect", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok) onUserUpdate(data.user);
+      setRunning(false);
+      return;
+    }
+    if (!form.login || !form.server) {
+      setConnectError("Account login and server are required.");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/mt5/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ login: form.login, server: form.server }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not connect.");
+      onUserUpdate(data.user);
+      setForm((f) => ({ ...f, password: "" }));
+    } catch (e) {
+      setConnectError(e.message);
+    } finally {
+      setConnecting(false);
+    }
   }
 
   return (
@@ -1141,36 +1181,46 @@ function BotDashboard() {
           <Plug size={16} className="text-[#8B93A3]" />
           <span className="text-sm font-medium text-[#E7E9EC]">Connect MT5 account</span>
         </div>
+        <p className="text-xs text-[#8B93A3] mb-3 leading-relaxed">
+          Use your broker's <strong className="text-[#E7E9EC]">investor (read-only) password</strong> — never your real trading
+          password. We only record that a connection exists; we don't store the password, and there's no live broker feed wired
+          up yet, so no trade data will appear until a real bridge is built.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <input
             placeholder="Account login"
             value={form.login}
+            disabled={connected}
             onChange={(e) => setForm({ ...form, login: e.target.value })}
-            className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#E7E9EC] font-mono outline-none focus:border-[#E8A33D]"
+            className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#E7E9EC] font-mono outline-none focus:border-[#E8A33D] disabled:opacity-60"
           />
           <input
             placeholder="Server"
             value={form.server}
+            disabled={connected}
             onChange={(e) => setForm({ ...form, server: e.target.value })}
-            className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#E7E9EC] font-mono outline-none focus:border-[#E8A33D]"
+            className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#E7E9EC] font-mono outline-none focus:border-[#E8A33D] disabled:opacity-60"
           />
           <input
-            placeholder="Investor password"
+            placeholder="Investor (read-only) password"
             type="password"
             value={form.password}
+            disabled={connected}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#E7E9EC] font-mono outline-none focus:border-[#E8A33D]"
+            className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#E7E9EC] font-mono outline-none focus:border-[#E8A33D] disabled:opacity-60"
           />
         </div>
+        {connectError && <p className="text-xs text-[#D64550] mb-3">{connectError}</p>}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setConnected((c) => !c)}
-            className="text-sm px-4 py-2 rounded-xl bg-[#E8A33D] text-[#12151B] font-medium hover:brightness-110"
+            onClick={handleConnectToggle}
+            disabled={connecting}
+            className="text-sm px-4 py-2 rounded-xl bg-[#E8A33D] text-[#12151B] font-medium hover:brightness-110 disabled:opacity-60"
           >
-            {connected ? "Disconnect" : "Connect (placeholder)"}
+            {connecting ? "Connecting…" : connected ? "Disconnect" : "Connect"}
           </button>
           <span className={`text-xs font-mono ${connected ? "text-[#3FA796]" : "text-[#8B93A3]"}`}>
-            {connected ? "● connected" : "○ not connected — needs real broker API/EA bridge"}
+            {connected ? `● connected — ${user.mt5Login} @ ${user.mt5Server}` : "○ not connected"}
           </span>
         </div>
       </div>
@@ -1211,32 +1261,188 @@ function BotDashboard() {
       {/* Trade log */}
       <div className="bg-[#1B1F27] border border-white/10 rounded-2xl p-4">
         <span className="text-sm font-medium text-[#E7E9EC]">Trade log</span>
-        <table className="w-full mt-3 text-xs font-mono">
-          <thead>
-            <tr className="text-[#8B93A3] text-left border-b border-white/10">
-              <th className="pb-2 font-normal">Symbol</th>
-              <th className="pb-2 font-normal">Side</th>
-              <th className="pb-2 font-normal">Lots</th>
-              <th className="pb-2 font-normal">Entry</th>
-              <th className="pb-2 font-normal">Exit</th>
-              <th className="pb-2 font-normal">PnL</th>
-              <th className="pb-2 font-normal">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trades.map((t) => (
-              <tr key={t.id} className="border-b border-white/5 last:border-0">
-                <td className="py-2 text-[#E7E9EC]">{t.symbol}</td>
-                <td className={`py-2 ${t.side === "BUY" ? "text-[#3FA796]" : "text-[#D64550]"}`}>{t.side}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.lots}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.entry}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.exit}</td>
-                <td className={`py-2 ${t.pnl.startsWith("+") ? "text-[#3FA796]" : "text-[#D64550]"}`}>{t.pnl}</td>
-                <td className="py-2 text-[#8B93A3]">{t.status}</td>
+        {trades.length === 0 ? (
+          <p className="text-xs text-[#8B93A3] mt-3">
+            {connected ? "No trades yet." : "Connect your MT5 account above to see your trade log here."}
+          </p>
+        ) : (
+          <table className="w-full mt-3 text-xs font-mono">
+            <thead>
+              <tr className="text-[#8B93A3] text-left border-b border-white/10">
+                <th className="pb-2 font-normal">Symbol</th>
+                <th className="pb-2 font-normal">Side</th>
+                <th className="pb-2 font-normal">Lots</th>
+                <th className="pb-2 font-normal">Entry</th>
+                <th className="pb-2 font-normal">Exit</th>
+                <th className="pb-2 font-normal">PnL</th>
+                <th className="pb-2 font-normal">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {trades.map((t) => (
+                <tr key={t.id} className="border-b border-white/5 last:border-0">
+                  <td className="py-2 text-[#E7E9EC]">{t.symbol}</td>
+                  <td className={`py-2 ${t.side === "BUY" ? "text-[#3FA796]" : "text-[#D64550]"}`}>{t.side}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.lots}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.entry}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.exit}</td>
+                  <td className={`py-2 ${t.pnl.startsWith("+") ? "text-[#3FA796]" : "text-[#D64550]"}`}>{t.pnl}</td>
+                  <td className="py-2 text-[#8B93A3]">{t.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Free trader courses ----------
+const COURSES = [
+  {
+    id: "forex-basics",
+    level: "Beginner",
+    title: "Forex basics",
+    summary: "What a currency pair is, how pips and lots work, and how to read a quote.",
+    body: [
+      "A currency pair like EURUSD tells you how much of the second currency (USD, the \"quote\" currency) it takes to buy one unit of the first (EUR, the \"base\" currency). If EURUSD = 1.0842, one euro costs $1.0842.",
+      "A pip is the smallest standard price move for a pair — usually the 4th decimal place (0.0001) for most pairs, or the 2nd decimal (0.01) for pairs involving the Japanese yen.",
+      "A lot is a unit of trade size. A standard lot is 100,000 units of the base currency; a mini lot is 10,000; a micro lot is 1,000. Smaller lot sizes mean smaller pip values and smaller risk — most beginners should start with micro lots.",
+      "Every trade has two sides: you buy one currency while simultaneously selling the other. If you think EUR will strengthen against USD, you buy EURUSD. If you think it'll weaken, you sell it.",
+    ],
+  },
+  {
+    id: "risk-management",
+    level: "Beginner",
+    title: "Risk management",
+    summary: "The single habit that separates traders who last from traders who blow up their account.",
+    body: [
+      "Decide your risk per trade before you enter, as a percentage of your account — not a fixed dollar amount. Most experienced traders risk 1–2% of their account on any single trade, no matter how confident they feel.",
+      "Always set a stop-loss before you set a take-profit. A stop-loss defines the exact price where you're proven wrong and exit — it's not optional, and it's not something to move further away mid-trade because a trade is losing.",
+      "Think in risk:reward ratios. A 1:2 ratio means you're risking $1 to potentially make $2. Even a strategy that only wins 40% of the time can be profitable long-term at a 1:2 ratio or better.",
+      "Position size, don't guess. Position size = (Account size × Risk %) ÷ (Stop-loss distance in pips × Pip value). Getting this calculation right matters more than picking the 'perfect' entry.",
+      "One bad trade should never be able to seriously damage your account. If it can, your position size was too big — not your analysis too wrong.",
+    ],
+  },
+  {
+    id: "candlesticks",
+    level: "Beginner",
+    title: "Reading candlestick charts",
+    summary: "The anatomy of a candle, and a handful of patterns worth actually knowing.",
+    body: [
+      "Each candle shows four prices over a time period: open, high, low, and close. The thick part (the 'body') spans open to close; the thin lines above/below (the 'wicks' or 'shadows') show the high and low.",
+      "A green/hollow candle usually means the close was higher than the open (price went up over that period). A red/filled candle means the close was lower than the open.",
+      "A 'doji' — a candle with a tiny body and long wicks on both sides — shows indecision: buyers and sellers fought to a draw. They're often more meaningful at the top or bottom of a trend.",
+      "An 'engulfing' pattern is when one candle's body completely covers the previous candle's body in the opposite color — a possible sign the trend is reversing, especially after a long run in one direction.",
+      "A 'hammer' (small body, long lower wick, appearing after a downtrend) suggests sellers pushed price down but buyers fought back hard by the close — often read as a potential bottom.",
+      "No candlestick pattern works in isolation. They're context clues, not signals — always read them alongside the broader trend and key support/resistance levels.",
+    ],
+  },
+  {
+    id: "leverage-margin",
+    level: "Intermediate",
+    title: "Leverage & margin",
+    summary: "Why leverage is the main reason beginners lose accounts — and how to use it responsibly.",
+    body: [
+      "Leverage lets you control a larger position than your account balance would normally allow. At 1:100 leverage, $1,000 controls a $100,000 position.",
+      "Leverage amplifies both gains AND losses by the same factor. It doesn't change your odds of winning — it just makes the outcome, whichever way it goes, much bigger.",
+      "Margin is the amount of your own money set aside as collateral to open a leveraged position. If your losses eat into your margin too far, your broker issues a 'margin call' — and if you don't add funds, they'll forcibly close your positions ('stop-out').",
+      "The mistake almost every beginner makes: using high leverage to open a position size that's too large for their account, so a completely normal price wiggle wipes them out. Leverage available ≠ leverage you should use.",
+      "A practical rule: calculate your position size from your risk management plan first (see the Risk Management course), then check that it fits comfortably within your margin — not the other way around.",
+    ],
+  },
+  {
+    id: "analysis-styles",
+    level: "Intermediate",
+    title: "Technical vs. fundamental analysis",
+    summary: "Two different lenses for the same market — and why most traders end up using both.",
+    body: [
+      "Technical analysis studies price charts and patterns, on the idea that price already reflects all known information, and history tends to repeat because human behavior repeats. Tools: trendlines, support/resistance, indicators, candlestick patterns.",
+      "Fundamental analysis studies the underlying economic and political drivers of a currency's value — interest rates, inflation, employment data, central bank policy, geopolitical events.",
+      "Neither approach is 'correct' on its own. Fundamentals tend to set the broader direction over weeks and months; technicals are often used to time entries and exits within that direction.",
+      "A common beginner mistake is ignoring the economic calendar entirely and being surprised when a clean technical setup gets blown apart by a surprise interest rate decision or jobs report.",
+    ],
+  },
+  {
+    id: "psychology",
+    level: "Intermediate",
+    title: "Trading psychology",
+    summary: "Why the hardest part of trading has nothing to do with charts.",
+    body: [
+      "Revenge trading — trying to immediately win back a loss with a bigger, less-planned trade — is one of the fastest ways to turn a bad day into a disastrous month. If you catch yourself doing this, step away.",
+      "Overconfidence after a winning streak leads to oversized positions and skipped risk management, right before the market normally humbles that overconfidence.",
+      "A trading journal — logging every trade's reasoning, entry, exit, and outcome — is the single best tool for noticing your own repeated mistakes. Most traders think they know their patterns; the journal usually proves otherwise.",
+      "Trading is a game of probabilities played over hundreds of trades, not a verdict on any single one. Judge your process, not any individual result.",
+      "If a single trade's outcome affects your mood for the rest of the day, your position size is too large relative to what you can handle emotionally — regardless of what the math says.",
+    ],
+  },
+];
+
+const EXTERNAL_RESOURCES = [
+  { name: "BabyPips — School of Pipsology", desc: "The most widely recommended free, structured forex course online.", url: "https://www.babypips.com/learn/forex" },
+  { name: "Investopedia — Trading basics", desc: "Deep, well-written reference articles on virtually every trading concept.", url: "https://www.investopedia.com/trading-4427765" },
+  { name: "TradingView — Education", desc: "Free chart-reading and strategy write-ups from a large trading community.", url: "https://www.tradingview.com/education/" },
+];
+
+function CoursesPage() {
+  const [activeCourse, setActiveCourse] = useState(null);
+
+  if (activeCourse) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <PanelHeader title={activeCourse.title} onBack={() => setActiveCourse(null)} />
+        <div className="bg-[#1B1F27] border border-white/10 rounded-2xl p-6 text-sm text-[#8B93A3] leading-relaxed space-y-4">
+          {activeCourse.body.map((para, i) => (
+            <p key={i}>{para}</p>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h2 className="font-serif text-2xl text-[#E7E9EC] mb-1" style={{ fontFamily: "Fraunces, serif" }}>
+        Learn to trade
+      </h2>
+      <p className="text-sm text-[#8B93A3] mb-6">Free lessons, written in plain language. No signup, no upsell.</p>
+      <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10 mb-6">
+        {COURSES.map((course) => (
+          <button
+            key={course.id}
+            onClick={() => setActiveCourse(course)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-white/5 transition text-left"
+          >
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#E7E9EC] font-medium">{course.title}</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E8A33D]/15 text-[#E8A33D]">{course.level}</span>
+              </div>
+              <div className="text-xs text-[#8B93A3] mt-0.5">{course.summary}</div>
+            </div>
+            <ChevronRight size={16} className="text-[#8B93A3] shrink-0" />
+          </button>
+        ))}
+      </div>
+
+      <h3 className="text-sm font-medium text-[#E7E9EC] mb-3">More free resources</h3>
+      <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10">
+        {EXTERNAL_RESOURCES.map((r) => (
+          <a
+            key={r.url}
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-white/5 transition"
+          >
+            <div>
+              <div className="text-sm text-[#E7E9EC] font-medium">{r.name}</div>
+              <div className="text-xs text-[#8B93A3] mt-0.5">{r.desc}</div>
+            </div>
+            <ExternalLink size={15} className="text-[#8B93A3] shrink-0" />
+          </a>
+        ))}
       </div>
     </div>
   );
@@ -1254,8 +1460,8 @@ function StatTile({ label, value, tone }) {
 }
 
 // ---------- Trading history dashboard (Profile) ----------
-function TradingHistoryDashboard() {
-  const trades = useMemo(
+function TradingHistoryDashboard({ connected }) {
+  const allTrades = useMemo(
     () => [
       { id: 1, date: "2026-07-28", symbol: "EURUSD", side: "BUY", lots: 0.5, entry: "1.0821", exit: "1.0842", pnl: 42.0, status: "closed" },
       { id: 2, date: "2026-07-29", symbol: "XAUUSD", side: "SELL", lots: 0.2, entry: "2,401.2", exit: "2,409.6", pnl: -8.4, status: "closed" },
@@ -1268,6 +1474,8 @@ function TradingHistoryDashboard() {
     []
   );
 
+  // Nothing shown as "your history" until a real account is connected — no fake trades.
+  const trades = connected ? allTrades : [];
   const closed = trades.filter((t) => t.status === "closed");
   const wins = closed.filter((t) => t.pnl > 0);
   const totalPnl = closed.reduce((sum, t) => sum + t.pnl, 0);
@@ -1284,36 +1492,42 @@ function TradingHistoryDashboard() {
         <StatTile label="Open positions" value={openCount} />
       </div>
       <div className="bg-[#1B1F27] border border-white/10 rounded-2xl p-4 overflow-x-auto">
-        <table className="w-full text-xs font-mono">
-          <thead>
-            <tr className="text-[#8B93A3] text-left border-b border-white/10">
-              <th className="pb-2 font-normal">Date</th>
-              <th className="pb-2 font-normal">Symbol</th>
-              <th className="pb-2 font-normal">Side</th>
-              <th className="pb-2 font-normal">Lots</th>
-              <th className="pb-2 font-normal">Entry</th>
-              <th className="pb-2 font-normal">Exit</th>
-              <th className="pb-2 font-normal">PnL</th>
-              <th className="pb-2 font-normal">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trades.map((t) => (
-              <tr key={t.id} className="border-b border-white/5 last:border-0">
-                <td className="py-2 text-[#8B93A3]">{t.date}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.symbol}</td>
-                <td className={`py-2 ${t.side === "BUY" ? "text-[#3FA796]" : "text-[#D64550]"}`}>{t.side}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.lots}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.entry}</td>
-                <td className="py-2 text-[#E7E9EC]">{t.exit}</td>
-                <td className={`py-2 ${t.pnl > 0 ? "text-[#3FA796]" : t.pnl < 0 ? "text-[#D64550]" : "text-[#8B93A3]"}`}>
-                  {t.status === "open" ? "—" : `${t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}`}
-                </td>
-                <td className="py-2 text-[#8B93A3]">{t.status}</td>
+        {trades.length === 0 ? (
+          <p className="text-xs text-[#8B93A3]">
+            {connected ? "No trades yet." : "Connect your MT5 account in the Bot tab to see your trade history here."}
+          </p>
+        ) : (
+          <table className="w-full text-xs font-mono">
+            <thead>
+              <tr className="text-[#8B93A3] text-left border-b border-white/10">
+                <th className="pb-2 font-normal">Date</th>
+                <th className="pb-2 font-normal">Symbol</th>
+                <th className="pb-2 font-normal">Side</th>
+                <th className="pb-2 font-normal">Lots</th>
+                <th className="pb-2 font-normal">Entry</th>
+                <th className="pb-2 font-normal">Exit</th>
+                <th className="pb-2 font-normal">PnL</th>
+                <th className="pb-2 font-normal">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {trades.map((t) => (
+                <tr key={t.id} className="border-b border-white/5 last:border-0">
+                  <td className="py-2 text-[#8B93A3]">{t.date}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.symbol}</td>
+                  <td className={`py-2 ${t.side === "BUY" ? "text-[#3FA796]" : "text-[#D64550]"}`}>{t.side}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.lots}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.entry}</td>
+                  <td className="py-2 text-[#E7E9EC]">{t.exit}</td>
+                  <td className={`py-2 ${t.pnl > 0 ? "text-[#3FA796]" : t.pnl < 0 ? "text-[#D64550]" : "text-[#8B93A3]"}`}>
+                    {t.status === "open" ? "—" : `${t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}`}
+                  </td>
+                  <td className="py-2 text-[#8B93A3]">{t.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -1757,7 +1971,7 @@ function Profile({ user, onLogout, onAvatarChange, friends, incomingRequests, ou
           </div>
         </div>
       )}
-      <TradingHistoryDashboard />
+      <TradingHistoryDashboard connected={user.mt5Connected} />
       <div className="mt-6">
         <h3 className="text-sm font-medium text-[#E7E9EC] mb-3">Settings</h3>
         <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10">
@@ -2392,7 +2606,8 @@ export default function TradingCommunityApp() {
           )}
           {view === "messages" && <Messages />}
           {view === "notifications" && <Notifications items={notifications} onMarkAllRead={markAllRead} />}
-          {view === "bot" && <BotDashboard />}
+          {view === "bot" && <BotDashboard user={user} onUserUpdate={setUser} />}
+          {view === "courses" && <CoursesPage />}
           {view === "profile" && (
             <Profile
               user={user}
