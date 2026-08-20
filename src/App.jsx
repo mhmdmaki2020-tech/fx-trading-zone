@@ -174,7 +174,7 @@ function Landing({ onSignIn, onSignUp }) {
 // ---------- Sign in / sign up form ----------
 const PASSWORD_PATTERN = "(?=.*[A-Za-z])(?=.*\\d).{8,}";
 
-function AuthForm({ mode, onSubmit, onSwitchMode, onBack, error, loading }) {
+function AuthForm({ mode, onSubmit, onSwitchMode, onBack, onForgotPassword, error, loading }) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -274,6 +274,15 @@ function AuthForm({ mode, onSubmit, onSwitchMode, onBack, error, loading }) {
             {isSignup && (
               <p className="text-[11px] text-[#8B93A3]">Must be at least 8 characters and include both letters and numbers.</p>
             )}
+            {!isSignup && (
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                className="text-[11px] text-[#E8A33D] hover:underline text-left"
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
           {error && <p className="text-xs text-[#D64550]">{error}</p>}
           <button
@@ -334,6 +343,130 @@ function VerifyEmailForm({ email, onSubmit, onResend, onBack, error, info, loadi
             className="mt-1 bg-[#E8A33D] text-[#12151B] font-medium text-sm px-4 py-2.5 rounded-xl hover:brightness-110 transition disabled:opacity-60"
           >
             {loading ? "Verifying…" : "Verify"}
+          </button>
+        </form>
+        <p className="text-xs text-[#8B93A3] mt-4">
+          Didn't get it?{" "}
+          <button onClick={onResend} disabled={resending} className="text-[#E8A33D] hover:underline disabled:opacity-60">
+            {resending ? "Sending…" : "Resend code"}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Forgot password: request a reset code ----------
+function ForgotPasswordForm({ onSubmit, onBack, error, loading }) {
+  const [email, setEmail] = useState("");
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    onSubmit(email);
+  }
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#12151B] px-6" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div className="w-full max-w-sm">
+        <button onClick={onBack} className="text-xs text-[#8B93A3] hover:text-[#E7E9EC] mb-6 font-mono">
+          ← back
+        </button>
+        <h2 className="font-serif text-2xl text-[#E7E9EC] mb-1" style={{ fontFamily: "Fraunces, serif" }}>
+          Reset your password
+        </h2>
+        <p className="text-sm text-[#8B93A3] mb-6">Enter your account email and we'll send you a reset code.</p>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            type="email"
+            required
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+          />
+          {error && <p className="text-xs text-[#D64550]">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-1 bg-[#E8A33D] text-[#12151B] font-medium text-sm px-4 py-2.5 rounded-xl hover:brightness-110 transition disabled:opacity-60"
+          >
+            {loading ? "Sending…" : "Send reset code"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Reset password: enter code + new password ----------
+function ResetPasswordForm({ email, onSubmit, onResend, onBack, error, info, loading, resending }) {
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [localError, setLocalError] = useState("");
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setLocalError("New password and confirmation don't match.");
+      return;
+    }
+    setLocalError("");
+    onSubmit(code.trim(), newPassword);
+  }
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#12151B] px-6" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div className="w-full max-w-sm">
+        <button onClick={onBack} className="text-xs text-[#8B93A3] hover:text-[#E7E9EC] mb-6 font-mono">
+          ← back
+        </button>
+        <h2 className="font-serif text-2xl text-[#E7E9EC] mb-1" style={{ fontFamily: "Fraunces, serif" }}>
+          Enter reset code
+        </h2>
+        <p className="text-sm text-[#8B93A3] mb-6">
+          We sent a 6-digit code to <span className="text-[#E7E9EC]">{email}</span>. Enter it below with your new password.
+        </p>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            required
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="6-digit code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D] tracking-widest text-center font-mono"
+          />
+          <div className="flex flex-col gap-1">
+            <input
+              type="password"
+              required
+              minLength={8}
+              pattern={PASSWORD_PATTERN}
+              title="At least 8 characters, with letters and numbers."
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+            />
+            <p className="text-[11px] text-[#8B93A3]">Must be at least 8 characters and include both letters and numbers.</p>
+          </div>
+          <input
+            type="password"
+            required
+            placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+          />
+          {(localError || error) && <p className="text-xs text-[#D64550]">{localError || error}</p>}
+          {info && <p className="text-xs text-[#3FA796]">{info}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-1 bg-[#E8A33D] text-[#12151B] font-medium text-sm px-4 py-2.5 rounded-xl hover:brightness-110 transition disabled:opacity-60"
+          >
+            {loading ? "Saving…" : "Reset password"}
           </button>
         </form>
         <p className="text-xs text-[#8B93A3] mt-4">
@@ -1846,7 +1979,7 @@ export default function TradingCommunityApp() {
 
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [authView, setAuthView] = useState("home"); // "home" | "signin" | "signup" | "verify"
+  const [authView, setAuthView] = useState("home"); // "home" | "signin" | "signup" | "verify" | "forgot" | "resetPassword"
   const [authError, setAuthError] = useState("");
   const [authInfo, setAuthInfo] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -1945,6 +2078,71 @@ export default function TradingCommunityApp() {
     setUser(null);
     setAuthView("home");
     setView("feed");
+  }
+
+  async function submitForgotPassword(email) {
+    setAuthLoading(true);
+    setAuthError("");
+    setAuthInfo("");
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not send reset code.");
+      setPendingEmail(json.email);
+      setAuthView("resetPassword");
+    } catch (e) {
+      setAuthError(e.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function submitResetPassword(code, newPassword) {
+    setAuthLoading(true);
+    setAuthError("");
+    setAuthInfo("");
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: pendingEmail, code, newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not reset password.");
+      setUser(json.user);
+      setAuthView("home");
+    } catch (e) {
+      setAuthError(e.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function resendResetCode() {
+    setResending(true);
+    setAuthError("");
+    setAuthInfo("");
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: pendingEmail }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not resend code.");
+      setAuthInfo("New code sent.");
+    } catch (e) {
+      setAuthError(e.message);
+    } finally {
+      setResending(false);
+    }
   }
 
   // Ask for camera/mic access as soon as the user lands on the Feed (the first tab),
@@ -2100,6 +2298,37 @@ export default function TradingCommunityApp() {
         />
       );
     }
+    if (authView === "forgot") {
+      return (
+        <ForgotPasswordForm
+          onSubmit={submitForgotPassword}
+          onBack={() => {
+            setAuthError("");
+            setAuthView("signin");
+          }}
+          error={authError}
+          loading={authLoading}
+        />
+      );
+    }
+    if (authView === "resetPassword") {
+      return (
+        <ResetPasswordForm
+          email={pendingEmail}
+          onSubmit={submitResetPassword}
+          onResend={resendResetCode}
+          onBack={() => {
+            setAuthError("");
+            setAuthInfo("");
+            setAuthView("signin");
+          }}
+          error={authError}
+          info={authInfo}
+          loading={authLoading}
+          resending={resending}
+        />
+      );
+    }
     return (
       <AuthForm
         mode={authView}
@@ -2111,6 +2340,10 @@ export default function TradingCommunityApp() {
         onBack={() => {
           setAuthError("");
           setAuthView("home");
+        }}
+        onForgotPassword={() => {
+          setAuthError("");
+          setAuthView("forgot");
         }}
         error={authError}
         loading={authLoading}

@@ -28,6 +28,8 @@ for (const stmt of [
   "ALTER TABLE users ADD COLUMN verification_code TEXT",
   "ALTER TABLE users ADD COLUMN verification_code_expires TEXT",
   "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+  "ALTER TABLE users ADD COLUMN reset_code TEXT",
+  "ALTER TABLE users ADD COLUMN reset_code_expires TEXT",
 ]) {
   try {
     db.exec(stmt);

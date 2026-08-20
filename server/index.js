@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import multer from "multer";
 import db from "./db.js";
-import { sendVerificationEmail } from "./mailer.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./mailer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Load server/.env explicitly — the default "dotenv/config" resolves relative to
@@ -232,6 +232,50 @@ app.post("/api/auth/login", (req, res) => {
   }
   setSessionCookie(res, user.id);
   res.json({ user: publicUser(user) });
+});
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: "Email is required." });
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail);
+  if (!user) return res.status(404).json({ error: "No account found for that email." });
+
+  const code = generateCode();
+  const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  db.prepare("UPDATE users SET reset_code = ?, reset_code_expires = ? WHERE id = ?").run(code, expires, user.id);
+
+  try {
+    await sendPasswordResetEmail(normalizedEmail, code);
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send reset email: ${e.message}` });
+  }
+  res.json({ ok: true, email: normalizedEmail });
+});
+
+app.post("/api/auth/reset-password", (req, res) => {
+  const { email, code, newPassword } = req.body || {};
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ error: "Email, code, and new password are required." });
+  }
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail);
+  if (!user) return res.status(404).json({ error: "No account found for that email." });
+  if (!user.reset_code || user.reset_code !== code) {
+    return res.status(400).json({ error: "Incorrect reset code." });
+  }
+  if (!user.reset_code_expires || new Date(user.reset_code_expires) < new Date()) {
+    return res.status(400).json({ error: "Code expired. Request a new one." });
+  }
+  if (!/(?=.*[A-Za-z])(?=.*\d).{8,}/.test(newPassword)) {
+    return res.status(400).json({ error: "New password must be at least 8 characters and include both letters and numbers." });
+  }
+
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare("UPDATE users SET password_hash = ?, reset_code = NULL, reset_code_expires = NULL WHERE id = ?").run(hash, user.id);
+  setSessionCookie(res, user.id);
+  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
+  res.json({ user: publicUser(updated) });
 });
 
 app.post("/api/auth/logout", (req, res) => {
