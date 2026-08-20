@@ -35,6 +35,7 @@ import {
   Lock,
   Folder,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 
 // ---------- Relative time formatting for posts ----------
@@ -691,9 +692,10 @@ function FriendButton({ friendInfo, onAdd, onAccept, onDecline, onCancel }) {
 }
 
 // ---------- Single post card ----------
-function PostCard({ post, onVote, onComment, friendInfo, onAddFriend, onAcceptFriend, onDeclineFriend, onCancelFriend, isOwnPost }) {
+function PostCard({ post, onVote, onComment, onDelete, friendInfo, onAddFriend, onAcceptFriend, onDeclineFriend, onCancelFriend, isOwnPost }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function submitComment() {
     if (!draft.trim()) return;
@@ -730,6 +732,25 @@ function PostCard({ post, onVote, onComment, friendInfo, onAddFriend, onAcceptFr
             onDecline={onDeclineFriend}
             onCancel={onCancelFriend}
           />
+        )}
+        {isOwnPost && post.kind === "user" && !confirmDelete && (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="text-[#8B93A3] hover:text-[#D64550] transition p-1"
+            title="Delete post"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+        {isOwnPost && post.kind === "user" && confirmDelete && (
+          <div className="flex items-center gap-2 text-xs">
+            <button onClick={() => onDelete(post.id)} className="text-[#D64550] font-medium hover:underline">
+              Delete
+            </button>
+            <button onClick={() => setConfirmDelete(false)} className="text-[#8B93A3] hover:underline">
+              Cancel
+            </button>
+          </div>
         )}
       </div>
       {post.text && <p className="text-sm text-[#E7E9EC] leading-relaxed mb-2 whitespace-pre-wrap">{post.text}</p>}
@@ -2523,6 +2544,11 @@ export default function TradingCommunityApp() {
     if (res.ok) setPosts((prev) => prev.map((p) => (p.id === id ? data.post : p)));
   }
 
+  async function deletePost(id) {
+    const res = await fetch(`/api/posts/${id}`, { method: "DELETE", credentials: "include" });
+    if (res.ok) setPosts((prev) => prev.filter((p) => p.id !== id));
+  }
+
   const [friends, setFriends] = useState([]);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [outgoingRequests, setOutgoingRequests] = useState([]);
@@ -2692,6 +2718,7 @@ export default function TradingCommunityApp() {
                   post={p}
                   onVote={votePost}
                   onComment={commentOnPost}
+                  onDelete={deletePost}
                   friendInfo={friendStatusByHandle[p.handle]}
                   onAddFriend={addFriend}
                   onAcceptFriend={acceptFriend}

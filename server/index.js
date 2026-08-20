@@ -126,6 +126,7 @@ function publicPost(row, viewerId) {
     userVote: vote?.type ?? null,
     commentsList: comments,
     createdAt: row.created_at,
+    isOwner: viewerId != null && row.user_id === viewerId,
   };
 }
 
@@ -360,6 +361,18 @@ app.post("/api/posts", requireAuth, (req, res) => {
     .run(req.user.id, req.user.username, `@${req.user.username}`, text?.trim() || null, media?.type ?? null, media?.url ?? null, up, createdAt);
   const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(info.lastInsertRowid);
   res.json({ post: publicPost(row, req.user.id) });
+});
+
+app.delete("/api/posts/:id", requireAuth, (req, res) => {
+  const postId = Number(req.params.id);
+  const post = db.prepare("SELECT * FROM posts WHERE id = ?").get(postId);
+  if (!post) return res.status(404).json({ error: "Post not found." });
+  if (post.user_id !== req.user.id) return res.status(403).json({ error: "You can only delete your own posts." });
+
+  db.prepare("DELETE FROM comments WHERE post_id = ?").run(postId);
+  db.prepare("DELETE FROM post_votes WHERE post_id = ?").run(postId);
+  db.prepare("DELETE FROM posts WHERE id = ?").run(postId);
+  res.json({ ok: true });
 });
 
 app.post("/api/posts/:id/vote", requireAuth, (req, res) => {
