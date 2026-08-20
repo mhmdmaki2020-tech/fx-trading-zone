@@ -13,7 +13,10 @@ import { sendVerificationEmail, sendPasswordResetEmail } from "./mailer.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Load server/.env explicitly — the default "dotenv/config" resolves relative to
 // process.cwd() (the project root when launched via npm scripts), not this file's
-// folder, so it was silently never finding server/.env.
+// folder, so it was silently never finding server/.env. Note: ES module imports are
+// evaluated before this line runs no matter where dotenv.config() sits in this file,
+// so any imported module (e.g. mailer.js) must read process.env lazily at call time,
+// not cache it in a top-level const, or it'll see values from before this ran.
 dotenv.config({ path: path.join(__dirname, ".env") });
 const uploadsDir = path.join(__dirname, "uploads");
 mkdirSync(uploadsDir, { recursive: true });
