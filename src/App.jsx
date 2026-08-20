@@ -32,6 +32,9 @@ import {
   RotateCcw,
   GraduationCap,
   ExternalLink,
+  Lock,
+  Folder,
+  CheckCircle2,
 } from "lucide-react";
 
 // ---------- Relative time formatting for posts ----------
@@ -1385,15 +1388,55 @@ const EXTERNAL_RESOURCES = [
   { name: "TradingView — Education", desc: "Free chart-reading and strategy write-ups from a large trading community.", url: "https://www.tradingview.com/education/" },
 ];
 
-function CoursesPage() {
-  const [activeCourse, setActiveCourse] = useState(null);
+// ---------- Course folders: free ones open now, premium ones are locked until payments exist ----------
+const COURSE_FOLDERS = [
+  {
+    id: "getting-started",
+    title: "Getting started",
+    access: "free",
+    desc: "The core concepts everyone should know before placing a real trade.",
+    lessons: [COURSES[0], COURSES[1], COURSES[2]],
+  },
+  {
+    id: "leveling-up",
+    title: "Leveling up",
+    access: "free",
+    desc: "Go beyond the basics: leverage, analysis styles, and the mental game.",
+    lessons: [COURSES[3], COURSES[4], COURSES[5]],
+  },
+  {
+    id: "price-action-mastery",
+    title: "Price action mastery",
+    access: "premium",
+    price: "$49",
+    desc: "Market structure, liquidity, order blocks, and multi-timeframe confluence — for traders who've outgrown the basics.",
+  },
+  {
+    id: "trading-plan-builder",
+    title: "Building a trading plan",
+    access: "premium",
+    price: "$29",
+    desc: "Turn a strategy into a written, testable plan: entry/exit rules, backtesting, and journaling templates.",
+  },
+  {
+    id: "prop-firm-prep",
+    title: "Prop firm challenge prep",
+    access: "premium",
+    price: "$39",
+    desc: "How funded-account evaluations work, the rules that trip people up, and how to pass one without blowing the account.",
+  },
+];
 
-  if (activeCourse) {
+function CoursesPage() {
+  const [openFolder, setOpenFolder] = useState(null);
+  const [activeLesson, setActiveLesson] = useState(null);
+
+  if (activeLesson) {
     return (
       <div className="max-w-2xl mx-auto">
-        <PanelHeader title={activeCourse.title} onBack={() => setActiveCourse(null)} />
+        <PanelHeader title={activeLesson.title} onBack={() => setActiveLesson(null)} />
         <div className="bg-[#1B1F27] border border-white/10 rounded-2xl p-6 text-sm text-[#8B93A3] leading-relaxed space-y-4">
-          {activeCourse.body.map((para, i) => (
+          {activeLesson.body.map((para, i) => (
             <p key={i}>{para}</p>
           ))}
         </div>
@@ -1401,27 +1444,91 @@ function CoursesPage() {
     );
   }
 
+  if (openFolder?.access === "premium") {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <PanelHeader title={openFolder.title} onBack={() => setOpenFolder(null)} />
+        <div className="bg-[#1B1F27] border border-white/10 rounded-2xl p-8 text-center">
+          <Lock size={28} className="text-[#E8A33D] mx-auto mb-4" />
+          <p className="text-sm text-[#E7E9EC] mb-4 max-w-sm mx-auto leading-relaxed">{openFolder.desc}</p>
+          <p className="font-serif text-3xl text-[#E8A33D] mb-5" style={{ fontFamily: "Fraunces, serif" }}>
+            {openFolder.price}
+          </p>
+          <button
+            disabled
+            className="bg-white/5 text-[#8B93A3] text-sm font-medium px-5 py-2.5 rounded-xl cursor-not-allowed"
+          >
+            Purchase — coming soon
+          </button>
+          <p className="text-xs text-[#8B93A3] mt-4 max-w-xs mx-auto">
+            Payments aren't set up yet. This course will unlock for purchase once a payment gateway is added.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (openFolder) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <PanelHeader title={openFolder.title} onBack={() => setOpenFolder(null)} />
+        <p className="text-sm text-[#8B93A3] mb-4">{openFolder.desc}</p>
+        <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10">
+          {openFolder.lessons.map((course) => (
+            <button
+              key={course.id}
+              onClick={() => setActiveLesson(course)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-white/5 transition text-left"
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#E7E9EC] font-medium">{course.title}</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E8A33D]/15 text-[#E8A33D]">{course.level}</span>
+                </div>
+                <div className="text-xs text-[#8B93A3] mt-0.5">{course.summary}</div>
+              </div>
+              <ChevronRight size={16} className="text-[#8B93A3] shrink-0" />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       <h2 className="font-serif text-2xl text-[#E7E9EC] mb-1" style={{ fontFamily: "Fraunces, serif" }}>
         Learn to trade
       </h2>
-      <p className="text-sm text-[#8B93A3] mb-6">Free lessons, written in plain language. No signup, no upsell.</p>
-      <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10 mb-6">
-        {COURSES.map((course) => (
+      <p className="text-sm text-[#8B93A3] mb-6">
+        Free lessons to start, written in plain language — plus deeper paid courses coming soon once payments are set up.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {COURSE_FOLDERS.map((folder) => (
           <button
-            key={course.id}
-            onClick={() => setActiveCourse(course)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-white/5 transition text-left"
+            key={folder.id}
+            onClick={() => setOpenFolder(folder)}
+            className="text-left p-5 rounded-2xl border border-white/10 bg-[#1B1F27] hover:border-[#E8A33D]/40 transition"
           >
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[#E7E9EC] font-medium">{course.title}</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E8A33D]/15 text-[#E8A33D]">{course.level}</span>
-              </div>
-              <div className="text-xs text-[#8B93A3] mt-0.5">{course.summary}</div>
+            <div className="flex items-center justify-between mb-3">
+              <Folder size={22} className="text-[#8B93A3]" />
+              {folder.access === "free" ? (
+                <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#3FA796]/15 text-[#3FA796]">
+                  <CheckCircle2 size={11} /> Free
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E8A33D]/15 text-[#E8A33D]">
+                  <Lock size={11} /> {folder.price}
+                </span>
+              )}
             </div>
-            <ChevronRight size={16} className="text-[#8B93A3] shrink-0" />
+            <div className="text-base font-medium text-[#E7E9EC] mb-1.5">{folder.title}</div>
+            <div className="text-xs text-[#8B93A3] leading-relaxed">{folder.desc}</div>
+            {folder.lessons && (
+              <div className="text-[10px] text-[#8B93A3] font-mono mt-3 uppercase tracking-wide">
+                {folder.lessons.length} lessons
+              </div>
+            )}
           </button>
         ))}
       </div>
