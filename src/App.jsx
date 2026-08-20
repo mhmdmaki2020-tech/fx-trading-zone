@@ -1776,6 +1776,19 @@ export default function TradingCommunityApp() {
     setView("feed");
   }
 
+  // Ask for camera/mic access as soon as the user lands on the Feed (the first tab),
+  // so the browser permission is already granted before they try to attach media.
+  useEffect(() => {
+    if (!user) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream) => stream.getTracks().forEach((track) => track.stop()))
+      .catch(() => {
+        // Denied or no device — fine, features that need it will just prompt again later.
+      });
+  }, [user]);
+
   const [posts, setPosts] = useState([]);
   const [postsLoaded, setPostsLoaded] = useState(false);
 
