@@ -1,4 +1,4 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
@@ -11,6 +11,10 @@ import db from "./db.js";
 import { sendVerificationEmail } from "./mailer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load server/.env explicitly — the default "dotenv/config" resolves relative to
+// process.cwd() (the project root when launched via npm scripts), not this file's
+// folder, so it was silently never finding server/.env.
+dotenv.config({ path: path.join(__dirname, ".env") });
 const uploadsDir = path.join(__dirname, "uploads");
 mkdirSync(uploadsDir, { recursive: true });
 const upload = multer({
@@ -247,6 +251,22 @@ app.post("/api/profile/avatar", requireAuth, upload.single("avatar"), (req, res)
   db.prepare("UPDATE users SET avatar_url = ? WHERE id = ?").run(avatarUrl, req.user.id);
   const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
   res.json({ user: publicUser(updated) });
+});
+
+app.post("/api/profile/password", requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Current and new password are required." });
+  }
+  if (!bcrypt.compareSync(currentPassword, req.user.password_hash)) {
+    return res.status(401).json({ error: "Current password is incorrect." });
+  }
+  if (!/(?=.*[A-Za-z])(?=.*\d).{8,}/.test(newPassword)) {
+    return res.status(400).json({ error: "New password must be at least 8 characters and include both letters and numbers." });
+  }
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, req.user.id);
+  res.json({ ok: true });
 });
 
 app.get("/api/posts", requireAuth, (req, res) => {

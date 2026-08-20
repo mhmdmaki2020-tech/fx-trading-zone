@@ -1232,7 +1232,7 @@ function MenuRow({ icon: Icon, label, onClick }) {
 }
 
 // ---------- Settings panel ----------
-function SettingsPanel({ onBack }) {
+function SettingsPanel({ onBack, onOpenChangePassword }) {
   const [notifications, setNotifications] = useState(true);
   const [aiCommentary, setAiCommentary] = useState(true);
   const [publicProfile, setPublicProfile] = useState(true);
@@ -1240,7 +1240,7 @@ function SettingsPanel({ onBack }) {
   return (
     <div className="max-w-2xl mx-auto">
       <PanelHeader title="Settings" onBack={onBack} />
-      <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10">
+      <div className="bg-[#1B1F27] border border-white/10 rounded-2xl divide-y divide-white/10 mb-4">
         <ToggleRow
           label="Push notifications"
           desc="Get notified about replies, likes, and bot fills."
@@ -1260,6 +1260,95 @@ function SettingsPanel({ onBack }) {
           onChange={setPublicProfile}
         />
       </div>
+      <div className="bg-[#1B1F27] border border-white/10 rounded-2xl">
+        <MenuRow icon={Shield} label="Change password" onClick={onOpenChangePassword} />
+      </div>
+    </div>
+  );
+}
+
+// ---------- Change password panel ----------
+function ChangePasswordPanel({ onBack }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess(false);
+    if (newPassword !== confirmPassword) {
+      setError("New password and confirmation don't match.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/profile/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not change password.");
+      setSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <PanelHeader title="Change password" onBack={onBack} />
+      <form onSubmit={handleSubmit} className="bg-[#1B1F27] border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
+        <input
+          type="password"
+          required
+          placeholder="Current password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+        />
+        <div className="flex flex-col gap-1">
+          <input
+            type="password"
+            required
+            minLength={8}
+            pattern={PASSWORD_PATTERN}
+            title="At least 8 characters, with letters and numbers."
+            placeholder="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full bg-[#12151B] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+          />
+          <p className="text-[11px] text-[#8B93A3]">Must be at least 8 characters and include both letters and numbers.</p>
+        </div>
+        <input
+          type="password"
+          required
+          placeholder="Confirm new password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className="bg-[#12151B] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+        />
+        {error && <p className="text-xs text-[#D64550]">{error}</p>}
+        {success && <p className="text-xs text-[#3FA796]">Password changed successfully.</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-[#E8A33D] text-[#12151B] font-medium text-sm px-4 py-2.5 rounded-xl hover:brightness-110 transition disabled:opacity-60"
+        >
+          {loading ? "Saving…" : "Save new password"}
+        </button>
+      </form>
     </div>
   );
 }
@@ -1398,7 +1487,8 @@ function Profile({ user, onLogout, onAvatarChange, friends, incomingRequests, ou
     ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
     : "";
 
-  if (panel === "settings") return <SettingsPanel onBack={() => setPanel(null)} />;
+  if (panel === "settings") return <SettingsPanel onBack={() => setPanel(null)} onOpenChangePassword={() => setPanel("changePassword")} />;
+  if (panel === "changePassword") return <ChangePasswordPanel onBack={() => setPanel("settings")} />;
   if (panel === "privacy") return <PrivacyPanel onBack={() => setPanel(null)} />;
   if (panel === "help") return <HelpPanel onBack={() => setPanel(null)} />;
   if (panel === "terms") return <TermsPanel onBack={() => setPanel(null)} />;
