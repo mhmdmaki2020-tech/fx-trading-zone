@@ -48,16 +48,69 @@ function timeAgo(iso) {
 // ---------- Tradable symbols (shared by the ticker tape and calculator) ----------
 const SYMBOLS = ["EURUSD", "XAUUSD", "US30", "GBPJPY", "BTCUSD", "USDJPY", "NAS100", "USOIL"];
 
-// ---------- Country list for sign-up ----------
+// ---------- Country list for sign-up (name + phone dial code) ----------
 const COUNTRIES = [
-  "United States", "United Kingdom", "Canada", "Australia", "New Zealand", "Ireland",
-  "Germany", "France", "Spain", "Italy", "Portugal", "Netherlands", "Belgium", "Switzerland",
-  "Austria", "Sweden", "Norway", "Denmark", "Finland", "Poland", "Czech Republic", "Greece",
-  "Turkey", "Ukraine", "Russia", "United Arab Emirates", "Saudi Arabia", "Qatar", "Kuwait",
-  "Bahrain", "Oman", "Israel", "Egypt", "South Africa", "Nigeria", "Kenya", "Morocco",
-  "India", "Pakistan", "Bangladesh", "Sri Lanka", "China", "Japan", "South Korea",
-  "Singapore", "Malaysia", "Indonesia", "Thailand", "Vietnam", "Philippines", "Hong Kong",
-  "Taiwan", "Brazil", "Mexico", "Argentina", "Chile", "Colombia", "Peru", "Other",
+  { name: "United States", dial: "+1" },
+  { name: "United Kingdom", dial: "+44" },
+  { name: "Canada", dial: "+1" },
+  { name: "Australia", dial: "+61" },
+  { name: "New Zealand", dial: "+64" },
+  { name: "Ireland", dial: "+353" },
+  { name: "Germany", dial: "+49" },
+  { name: "France", dial: "+33" },
+  { name: "Spain", dial: "+34" },
+  { name: "Italy", dial: "+39" },
+  { name: "Portugal", dial: "+351" },
+  { name: "Netherlands", dial: "+31" },
+  { name: "Belgium", dial: "+32" },
+  { name: "Switzerland", dial: "+41" },
+  { name: "Austria", dial: "+43" },
+  { name: "Sweden", dial: "+46" },
+  { name: "Norway", dial: "+47" },
+  { name: "Denmark", dial: "+45" },
+  { name: "Finland", dial: "+358" },
+  { name: "Poland", dial: "+48" },
+  { name: "Czech Republic", dial: "+420" },
+  { name: "Greece", dial: "+30" },
+  { name: "Turkey", dial: "+90" },
+  { name: "Ukraine", dial: "+380" },
+  { name: "Russia", dial: "+7" },
+  { name: "United Arab Emirates", dial: "+971" },
+  { name: "Saudi Arabia", dial: "+966" },
+  { name: "Qatar", dial: "+974" },
+  { name: "Kuwait", dial: "+965" },
+  { name: "Bahrain", dial: "+973" },
+  { name: "Oman", dial: "+968" },
+  { name: "Israel", dial: "+972" },
+  { name: "Lebanon", dial: "+961" },
+  { name: "Jordan", dial: "+962" },
+  { name: "Egypt", dial: "+20" },
+  { name: "South Africa", dial: "+27" },
+  { name: "Nigeria", dial: "+234" },
+  { name: "Kenya", dial: "+254" },
+  { name: "Morocco", dial: "+212" },
+  { name: "India", dial: "+91" },
+  { name: "Pakistan", dial: "+92" },
+  { name: "Bangladesh", dial: "+880" },
+  { name: "Sri Lanka", dial: "+94" },
+  { name: "China", dial: "+86" },
+  { name: "Japan", dial: "+81" },
+  { name: "South Korea", dial: "+82" },
+  { name: "Singapore", dial: "+65" },
+  { name: "Malaysia", dial: "+60" },
+  { name: "Indonesia", dial: "+62" },
+  { name: "Thailand", dial: "+66" },
+  { name: "Vietnam", dial: "+84" },
+  { name: "Philippines", dial: "+63" },
+  { name: "Hong Kong", dial: "+852" },
+  { name: "Taiwan", dial: "+886" },
+  { name: "Brazil", dial: "+55" },
+  { name: "Mexico", dial: "+52" },
+  { name: "Argentina", dial: "+54" },
+  { name: "Chile", dial: "+56" },
+  { name: "Colombia", dial: "+57" },
+  { name: "Peru", dial: "+51" },
+  { name: "Other", dial: "" },
 ];
 
 // ---------- FXTZ logo mark: a mini up/down candle pair ----------
@@ -119,17 +172,21 @@ function Landing({ onSignIn, onSignUp }) {
 }
 
 // ---------- Sign in / sign up form ----------
+const PASSWORD_PATTERN = "(?=.*[A-Za-z])(?=.*\\d).{8,}";
+
 function AuthForm({ mode, onSubmit, onSwitchMode, onBack, error, loading }) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [mobile, setMobile] = useState("");
+  const [dialCode, setDialCode] = useState(COUNTRIES[0].dial);
   const [country, setCountry] = useState("");
   const isSignup = mode === "signup";
 
   function handleSubmit(e) {
     e.preventDefault();
-    onSubmit(isSignup ? { email, username, password, mobile, country } : { email, password });
+    const fullMobile = isSignup ? `${dialCode} ${mobile}`.trim() : mobile;
+    onSubmit(isSignup ? { email, username, password, mobile: fullMobile, country } : { email, password });
   }
 
   return (
@@ -160,40 +217,64 @@ function AuthForm({ mode, onSubmit, onSwitchMode, onBack, error, loading }) {
                 onChange={(e) => setUsername(e.target.value)}
                 className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
               />
-              <input
-                type="tel"
-                required
-                placeholder="Mobile number"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={dialCode}
+                  onChange={(e) => setDialCode(e.target.value)}
+                  className="bg-[#1B1F27] border border-white/10 rounded-lg px-2 py-2.5 text-sm text-[#E7E9EC] outline-none focus:border-[#E8A33D] font-mono w-24 shrink-0"
+                >
+                  {COUNTRIES.filter((c) => c.dial).map((c) => (
+                    <option key={c.name} value={c.dial}>
+                      {c.dial}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  required
+                  placeholder="Mobile number"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  className="flex-1 bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+                />
+              </div>
               <select
                 required
                 value={country}
-                onChange={(e) => setCountry(e.target.value)}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  const match = COUNTRIES.find((c) => c.name === e.target.value);
+                  if (match?.dial) setDialCode(match.dial);
+                }}
                 className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] outline-none focus:border-[#E8A33D]"
               >
                 <option value="" disabled>
                   Country
                 </option>
                 {COUNTRIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                  <option key={c.name} value={c.name}>
+                    {c.name}
                   </option>
                 ))}
               </select>
             </>
           )}
-          <input
-            type="password"
-            required
-            minLength={6}
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
-          />
+          <div className="flex flex-col gap-1">
+            <input
+              type="password"
+              required
+              minLength={isSignup ? 8 : undefined}
+              pattern={isSignup ? PASSWORD_PATTERN : undefined}
+              title={isSignup ? "At least 8 characters, with letters and numbers." : undefined}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-[#1B1F27] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-[#E7E9EC] placeholder-[#8B93A3] outline-none focus:border-[#E8A33D]"
+            />
+            {isSignup && (
+              <p className="text-[11px] text-[#8B93A3]">Must be at least 8 characters and include both letters and numbers.</p>
+            )}
+          </div>
           {error && <p className="text-xs text-[#D64550]">{error}</p>}
           <button
             type="submit"

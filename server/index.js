@@ -124,8 +124,8 @@ app.post("/api/auth/signup", async (req, res) => {
   if (!email || !username || !password || !mobile || !country) {
     return res.status(400).json({ error: "Email, username, password, mobile number, and country are required." });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters." });
+  if (!/(?=.*[A-Za-z])(?=.*\d).{8,}/.test(password)) {
+    return res.status(400).json({ error: "Password must be at least 8 characters and include both letters and numbers." });
   }
   const normalizedEmail = String(email).trim().toLowerCase();
   const existing = db.prepare("SELECT id FROM users WHERE email = ? OR username = ?").get(normalizedEmail, username);
